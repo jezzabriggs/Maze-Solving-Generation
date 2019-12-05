@@ -1,0 +1,132 @@
+import random
+from cmu_112_graphics import *  # this is imported from
+
+# http://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
+from tkinter import *
+
+# this code is adapted from http://reeborg.ca/docs/en/reference/mazes.html
+# and https://github.com/boppreh/maze/blob/master/maze.py
+
+
+class Cell(object):
+    # cell object for maze generation
+    def __init__(self, col, row, walls):
+        self.col = col
+        self.row = row
+        self.walls = set(walls)  # only contains the walls still standing
+
+    def __repr__(self):
+        # string representation of a cell
+        return f"Cell({self.row, self.col}) with walls {self.walls}"
+
+    def compCell(self):
+        # checks if the cell has all of its walls
+        return len(self.walls) == 4
+
+    def cellDirection(self, other):
+        # returns the direction of the common wall between the two input cells
+        if not abs(self.col - other.col) + abs(self.row - other.row) == 1:
+            return False
+        elif other.row > self.row:
+            return "south"
+        elif other.row < self.row:
+            return "north"
+        elif other.col < self.col:
+            return "west"
+        elif other.col > self.col:
+            return "east"
+        else:
+            return False
+
+    def connectCells(self, other):
+        # remove adjacent walls between cells
+        other.walls.remove(other.cellDirection(self))
+        self.walls.remove(self.cellDirection(other))
+
+
+class Maze(object):
+    def __init__(self, rows, cols):
+        self.rows = rows
+        self.cols = cols
+        self.cells = self.createCells(self.rows, self.cols)
+
+    def createCells(self, rows, cols):
+        # creates cells with the given rows and cols
+        cells = [[0] * cols for _ in range(rows)]
+        dirs = ["north", "south", "east", "west"]
+        for i in range(rows):
+            for j in range(cols):
+                cells[i][j] = Cell(i, j, dirs)
+        return cells
+
+    def getCell(self, pos):  # pos is a tuple of (col, row)
+        (col, row) = pos
+        if 0 <= col <= self.cols - 1 and 0 <= row <= self.rows - 1:
+            return self.cells[row][col]
+        return None
+
+    def getNeighbours(self, cell):  # takes (col, row) tuple
+        (col, row) = cell.col, cell.row
+        posNeighbours = [(col + 1, row), (col, row + 1), (col - 1, row), (col, row - 1)]
+        dirs = ["north", "south", "east", "west"]
+        # no diagonals
+        for (col, row) in posNeighbours:
+            neighbour = self.getCell((row, col))
+            if neighbour != None:
+                yield neighbour
+
+    def makeMaze(self):
+        # maze generation using the first cell and a random endpoint
+        seenCells = []
+        numCellsSeen = 1
+        firstCell = self.cells[0][0]
+        while numCellsSeen < (len(self.cells) * len(self.cells[0])):
+            neighbourCells = [c for c in self.getNeighbours(firstCell) if c.compCell()]
+            if len(neighbourCells) > 0:
+                neighbour = random.choice(neighbourCells)
+                firstCell.connectCells(neighbour)
+                seenCells.append(firstCell)
+                firstCell = neighbour
+                numCellsSeen += 1
+            else:
+                firstCell = seenCells.pop()
+        return self.cells
+
+    def makeMazeBetter(self, cells):
+        start1, start2 = (
+            random.randint(0, len(cells) // 2),
+            random.randint(0, len(cells[0]) // 2),
+        )
+        gap1 = random.choice([3, 4, 5])
+        gap2 = random.choice([3, 4, 5])
+        for i in range(start1, len(cells), gap1):
+            for j in range(start2, len(cells[0]), gap2):
+                cell = cells[i][j]
+                posDirs = sorted(list(cell.walls))
+                removeDir = posDirs[random.randint(0, len(posDirs) - 1)]
+                cell.walls.remove(removeDir)
+                if removeDir == "north" and j - 1 >= 0:
+                    adCell = cells[i][j - 1]
+                    if "south" in adCell.walls:
+                        adCell.walls.remove("south")
+                elif removeDir == "south" and j + 1 < self.cols:
+                    adCell = cells[i][j + 1]
+                    if "north" in adCell.walls:
+                        adCell.walls.remove("north")
+                elif removeDir == "east" and i + 1 < self.rows:
+                    adCell = cells[i + 1][j]
+                    if "west" in adCell.walls:
+                        adCell.walls.remove("west")
+                elif removeDir == "west" and i - 1 >= 0:
+                    adCell = cells[i - 1][j]
+                    if "east" in adCell.walls:
+                        adCell.walls.remove("east")
+        return cells
+
+    @staticmethod
+    def createMaze(width, height):
+        # initializes maze making
+        maze = Maze(width, height)
+        mazeCells = maze.makeMaze()
+        mazeCells = maze.makeMazeBetter(mazeCells)
+        return mazeCells
